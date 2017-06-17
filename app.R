@@ -1,12 +1,15 @@
 library(shiny)
 library(shinydashboard)
+library(ROpenDota)
+library(randomForest)
+library(digest)
 
 ui <- dashboardPage(
   skin = "red",
   dashboardHeader(title = "Player Roles Prediction - Dota 2",
                   titleWidth = 330),
   ## Sidebar content
-  dashboardSidebar(width = 330,
+  dashboardSidebar(width = 230,
                    sidebarMenu(
                      menuItem(
                        "Introduction",
@@ -92,21 +95,113 @@ ui <- dashboardPage(
                 status = "primary",
                 solidHeader = TRUE,
                 collapsible = TRUE,
-                textInput("inputId", "Input match ID", width = 200),
-                actionButton("go_predict", "Predict")
+                textInput("inputId", "Input match ID", width = 200, placeholder = "e.g.3250523435"),
+                actionButton("go_predict", "Predict"),
+                hr(),
+                verbatimTextOutput("result"),
+                hr(),
+                p("Database updated : 6/17/2017.")
               )
             ))
   ))
 )
 
 server <- function(input, output) {
+  prepro_data <- function(match_id) {
+    x = get_match_details(match_id)
+    kda = x$players$kda
+    NK = x$players$neutral_kills
+    if (is.null(NK))
+      NK = 0
+    GPM = x$players$gold_per_min
+    if (is.null(GPM))
+      GPM = 0
+    XPM = x$players$xp_per_min
+    if (is.null(XPM))
+      XPM = 0
+    DN = x$players$denies
+    if (is.null(DN))
+      DN = 0
+    HD = x$players$hero_damage
+    if (is.null(HD))
+      HD = 0
+    HH = x$players$hero_healing
+    if (is.null(HH))
+      HH = 0
+    eff = x$players$lane_efficiency
+    if (is.null(eff))
+      eff = 0
+    lane = x$players$lane_role
+    if (is.null(lane))
+      lane = 0
+    checkMe = data.frame(x$players$purchase)
+    Observer = 0
+    Sentry = 0
+    if (!is.na(checkMe)) {
+      Observer = x$players$purchase$ward_observer
+      Observer[is.na(Observer)] = 0
+      Sentry = x$players$purchase$ward_sentry
+      Sentry[is.na(Sentry)] = 0
+    }
+    
+    y = data.frame(lane, eff, HD, GPM, XPM, DN, HH, NK, Observer, Sentry)
+    y[is.na(y)] <- 0
+    
+    
+    datasets <- y
+    colnames(datasets) <-
+      c("lane",
+        "eff",
+        "HD",
+        "GPM",
+        "XPM",
+        "DN",
+        "HH",
+        "NK",
+        "Observer",
+        "Sentry")
+    datasets$account_id <- NULL
+    filename <- sapply(input$inputId, digest, algo="md5")
+    write.table(
+      datasets,
+      file = paste0("./",filename,".csv", sep = ""),
+      row.names = FALSE,
+      col.names = FALSE,
+      sep = ",",
+      append = F,
+      quote =
+    )
+    random_forest(paste0("./",filename,".csv", sep = ""))
+  }
+  
+  random_forest <- function(datasets) {
+    super_model <- readRDS("./final_model.rds")
+    aa = read.csv(datasets, sep = ",", header = F)
+    final_predictions <- predict(super_model, aa)
+    output$result <- renderPrint({
+      print(final_predictions)
+    })
+  }
+  
+  observeEvent(input$go_predict, {
+    prepro_data(input$inputId)
+  })
+  
   observeEvent(input$about, {
     showModal(modalDialog(
       title = span(tagList(icon("info-circle"), "About")),
-      tags$div(
+      div(
+        style = "display:inline-block",
+        HTML(
+          "<img src='https://scontent-tpe1-1.xx.fbcdn.net/v/t1.0-9/14432999_10209025211221091_6098375426366577073_n.jpg?oh=e8e6d7d3c7f7afe6b35ac7a699f5683f&oe=599C9151' width=150><br/><br/>",
+          "<p>Ardian Rianto</br><a href=mailto:ardian151551@gmail.com>Email</a></br><a href='https://www.facebook.com/ardian2404' target=blank>FB</a></p>"
+        )
+      ),
+      div(
+        style = "display:inline-block",
         HTML(
           "<img src='https://avatars1.githubusercontent.com/u/4516635?v=3&s=460' width=150><br/><br/>",
-          "<p>Developer : Rosdyana Kusuma</br>Email : <a href=mailto:rosdyana.kusuma@gmail.com>rosdyana.kusuma@gmail.com</a></br>linkedin : <a href='https://www.linkedin.com/in/rosdyanakusuma/' target=blank>Open me</a></p>"
+          "<p>Rosdyana Kusuma</br><a href=mailto:rosdyana.kusuma@gmail.com>Email</a></br><a href='https://www.linkedin.com/in/rosdyanakusuma/' target=blank>linkedin</a></p>"
         )
       ),
       easyClose = TRUE
