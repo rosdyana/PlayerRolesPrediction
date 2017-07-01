@@ -89,7 +89,8 @@ ui <- dashboardPage(
                 h4(
                   'This Web interface should help to understand our research work.',
                   align = "justify"
-                ))
+                ),
+                HTML('Any suggestions/feedback or bug report can send us an <a href="mailto:rosdyana.kusuma@gmail.com">email</a> or in <a href="https://github.com/rosdyana/PlayerRolesPrediction" target=blank>github</a>'))
               #,
               # box(
               #   title = tagList(shiny::icon("fa-thumbs-o-up") , "Credit"),
@@ -123,13 +124,14 @@ ui <- dashboardPage(
                 uiOutput("dire_bar"),
                 DT::dataTableOutput("result_dir"),
                 hr(),
-                p("Database updated : 6/17/2017.")
+                p("Database updated : 07/01/2017.")
               )
             ))
   ))
 )
 
 server <- function(input, output) {
+
   get_hero_icon <- function(id){
     if (id == 1) return("antimage.png")
     if (id == 2) return("axe.png")
@@ -330,6 +332,9 @@ server <- function(input, output) {
     m_kill = x$players$kills
     m_death = x$players$deaths
     m_assist = x$players$assists
+    radiantWin = x$radiant_win
+    if(radiantWin) resultx = "Winner" else resultx = "Loser"
+    if(!radiantWin) resulty = "Winner" else resulty = "Loser"
     dat <- data.frame(
       Name = playerName,
       Hero = m_img,
@@ -338,19 +343,29 @@ server <- function(input, output) {
       Assist = m_assist,
       Roles = m_roles
     )
+    # write result to the file for logging
+    write.table(
+      m_roles,
+      file = datasets,
+      row.names = FALSE,
+      col.names = FALSE,
+      sep = ",",
+      append = T,
+      quote =
+    )
     dat$Hero <- sprintf('<img src="%s" height="33" title="%s"></img>', m_img,m_img)
     radiant = dat[1:5,]
     dire = dat[6:10,]
     output$radiant_bar <- renderUI({
       hr()
-      h3("Radiant Team", align="center")
+      h3(paste0("Radiant Team - ",resultx), align="center")
     })
     output$result_rad <- DT::renderDataTable({
       DT::datatable(radiant, escape = FALSE) # HERE
     })
     output$dire_bar <- renderUI({
       hr()
-      h3("Dire Team", align="center")
+      h3(paste0("Dire Team - ",resulty), align="center")
     })
     output$result_dir <- DT::renderDataTable({
       DT::datatable(dire, escape = FALSE) # HERE
